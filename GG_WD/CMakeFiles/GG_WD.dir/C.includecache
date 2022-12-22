@@ -116,13 +116,3 @@ include/shader.h
 include/render.h
 /home/yame/Desktop/GG_WD/include/render.h
 
-/home/yame/Desktop/GG_WD/render.c
-include/render.h
-/home/yame/Desktop/GG_WD/include/render.h
-include/window.h
-/home/yame/Desktop/GG_WD/include/window.h
-
-/home/yame/Desktop/GG_WD/window.c
-include/window.h
-/home/yame/Desktop/GG_WD/include/window.h
-

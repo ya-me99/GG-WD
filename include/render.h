@@ -12,12 +12,7 @@
 
 // ------------------------------------- Points --------------------------------
 
-typedef struct
-{
- float x,y;
- float r,g,b,a;
- float size;
-}Point;
+typedef float Point[7];
 
 typedef struct 
 {
@@ -38,6 +33,9 @@ void Points_Draw(Points* points);
 void Points_ResizeBuffer(Points *points);
 
 void Points_Remove();
+
+void Points_PointUpdate(Points* points,Point point,uint32_t unit);
+
 
 // ------------------------------------- Utils --------------------------------- 
 

@@ -89,6 +89,23 @@ inline ARRAY_RESIZE_PROTO(type)						\
 }
 
 
+#define ARRAY_ADD_ARRAY_PROTO(type,tsize) void type##_AddArray(tsize *val, type *arr,uint64_t count)
+
+#define ARRAY_ADD_ARRAY_DEF(type,tsize)               \
+inline ARRAY_ADD_ARRAY_PROTO(type,tsize)              \
+{                                                     \
+                                                      \
+ if(arr->space-count<=arr->used)                      \
+ {                                                    \
+  type##_Resize(arr,arr->load+count);                 \
+  if(arr->err==1){ return ;}                          \
+ }                                                    \
+                                                      \                
+ memcpy(&arr->array[arr->used],val,count*arr->size);  \
+ arr->used+=count;                                    \
+}                                                     \
+
+
 #define ARRAY_ADD_PROTO(type,tsize) void type##_Add(tsize val, type* arr)
 
 #define ARRAY_ADD_DEF(type,tsize)                  \
@@ -205,11 +222,13 @@ ARRAY_BUILD_PROTO(type);                \
 ARRAY_RESIZE_PROTO(type);               \
 ARRAY_EXPAND_PROTO(type);               \
 ARRAY_ADD_PROTO(type,tsize);            \
+ARRAY_ADD_ARRAY_PROTO(type,tsize);      \
 ARRAY_INSERT_PROTO(type,tsize);         \
 ARRAY_APPEND_AT_PROTO(type,tsize);      \
 ARRAY_REMOVE_PROTO(type);               \
 ARRAY_FREE_PROTO(type);                 \
 ARRAY_SHRINK_PROTO(type);               \
+
 
 #define GENERIC_ARRAY_DEF(type,tsize)   \
 ARRAY_BUILD_DEF(type,tsize);            \
@@ -221,7 +240,7 @@ ARRAY_APPEND_AT_DEF(type,tsize);        \
 ARRAY_REMOVE_DEF(type);                 \
 ARRAY_FREE_DEF(type);                   \
 ARRAY_SHRINK_DEF(type);                 \
-							       					     
+ARRAY_ADD_ARRAY_DEF(type,tsize);        \
 // Generic Makros						
 
 GENERIC_ARRAY_PROTO(ArrayU8,uint8_t);
@@ -237,18 +256,6 @@ GENERIC_ARRAY_PROTO(ArrayF64,double);
 
 #endif
 
-#ifdef DA_IMPL_BASIC
-GENERIC_ARRAY_DEF(ArrayU8,uint8_t);
-GENERIC_ARRAY_DEF(ArrayU16,uint16_t);
-GENERIC_ARRAY_DEF(ArrayU32,uint32_t);
-GENERIC_ARRAY_DEF(ArrayU64,uint64_t);
-GENERIC_ARRAY_DEF(ArrayS8,int8_t);
-GENERIC_ARRAY_DEF(ArrayS16,int16_t);
-GENERIC_ARRAY_DEF(ArrayS32,int32_t);
-GENERIC_ARRAY_DEF(ArrayS64,int64_t);
-GENERIC_ARRAY_DEF(ArrayF32,float);
-GENERIC_ARRAY_DEF(ArrayF64,double);
-#endif
 
 /*
 // ---------------------------------------------- Pthread TS --------------------------------------------
