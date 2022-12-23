@@ -19,6 +19,8 @@ void Init_Render()
 {
  glGenVertexArrays(1,&dummy_vao);
  point_shader=Shader_BuildProg("shaders/points.glsl");
+
+ 
 }
 
 Points Points_Build(uint32_t units,uint32_t load)
@@ -53,6 +55,7 @@ void Points_Add(Points* points,Point point)
 {
  ArrayF32_AddArray(point,&(points->data),7); 
 
+
  points->count++;
  points->need_update=1;
   
@@ -75,7 +78,6 @@ void Points_PointUpdate(Points* points,Point point,uint32_t unit)
  points->data.array[index+4]=point[4];
  points->data.array[index+5]=point[5];
  points->data.array[index+6]=point[6];
-
 
  //memcpy(&(),point,7*sizeof(float));
  

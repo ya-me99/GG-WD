@@ -36,6 +36,7 @@ void Points_Remove();
 
 void Points_PointUpdate(Points* points,Point point,uint32_t unit);
 
+// ------------------------------------- Compute Shader --------------------------------- 
 
 // ------------------------------------- Utils --------------------------------- 
 
