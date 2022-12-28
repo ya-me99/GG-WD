@@ -3,6 +3,8 @@
 
 GLuint dummy_vao;
 GLuint point_shader;
+GLuint bernstein_shader;
+GLuint bernstein_locs[3];
 
 GENERIC_ARRAY_DEF(ArrayU8,uint8_t);
 GENERIC_ARRAY_DEF(ArrayU16,uint16_t);
@@ -17,20 +19,36 @@ GENERIC_ARRAY_DEF(ArrayF64,double);
 
 void Init_Render()
 {
- glGenVertexArrays(1,&dummy_vao);
- point_shader=Shader_BuildProg("shaders/points.glsl");
 
+ // -------------------   Point Init
+  
+ glGenVertexArrays(1,&dummy_vao);
+ point_shader=Shader_BuildProg("shaders/points.glsl"); 
+
+
+ // -------------------   Bernstein Init
  
+ bernstein_shader=Shader_BuildProg("shaders/spline_compute.glsl"); 
+ glUseProgram(bernstein_shader);
+ bernstein_locs[0]==glGetUniformLocation(bernstein_shader,"control_points_x");
+ bernstein_locs[1]==glGetUniformLocation(bernstein_shader,"control_points_y");
+ bernstein_locs[2]==glGetUniformLocation(bernstein_shader,"control_points_z");
+
 }
 
-Points Points_Build(uint32_t units,uint32_t load)
+
+
+
+// -------------------   Points Render -----------------------------
+
+Points Points_Build(uint32_t space,uint32_t load)
 {
  Points pts;
 
- pts.data=ArrayF32_Build(units*7*sizeof(float),load*7*sizeof(float));
+ pts.data=ArrayF32_Build(space*7*sizeof(float),load*7*sizeof(float));
  pts.count=0;
  pts.need_update=0;
- pts.units=units;
+ pts.space=space;
  pts.load=load;
 
  glGenBuffers(1,&pts.vbo);
@@ -38,7 +56,7 @@ Points Points_Build(uint32_t units,uint32_t load)
 
  glBindVertexArray(pts.vao); 
  glBindBuffer(GL_ARRAY_BUFFER,pts.vbo);
- glBufferData(GL_ARRAY_BUFFER,7*sizeof(float)*units,NULL,GL_DYNAMIC_DRAW);
+ glBufferData(GL_ARRAY_BUFFER,7*sizeof(float)*space,NULL,GL_DYNAMIC_DRAW);
  
  glVertexAttribPointer(0,2,GL_FLOAT,GL_FALSE,7*sizeof(float),0);
  glVertexAttribPointer(1,4,GL_FLOAT,GL_FALSE,7*sizeof(float),(void*)8);
@@ -53,21 +71,36 @@ Points Points_Build(uint32_t units,uint32_t load)
 
 void Points_Add(Points* points,Point point)
 {
- ArrayF32_AddArray(point,&(points->data),7); 
+  
+ if(points->count==points->space){
+  Points_ResizeBuffer(points); 
+ }
 
+ ArrayF32_AddArray(point,&(points->data),7); 
 
  points->count++;
  points->need_update=1;
   
- if(points->count>points->units){
-  Points_ResizeBuffer(points); 
+}
+
+void Points_AddArray(Points *points,Point *point,uint64_t count)
+{
+ if(points->count+count==points->space){
+  points->load+=count;
+  Points_ResizeBuffer(points);
+  points->load-=count;
  }
+
+ ArrayF32_AddArray(point,&(points->data),count*7);
+
+ points->count+=count;
+ points->need_update=1;
 }
 
 void Points_PointUpdate(Points* points,Point point,uint32_t unit)
 {
 
- if(points->units<unit){ return ; }
+ if(points->space<unit){ return ; }
  
  uint32_t index=unit*7;
 
@@ -92,7 +125,7 @@ void Points_ResizeBuffer(Points* points)
   glBindBuffer(GL_ARRAY_BUFFER,points->vbo);
   glBufferData(GL_ARRAY_BUFFER,size,NULL,GL_DYNAMIC_DRAW);
 
-  points->units=points->count+points->load;
+  points->space=points->count+points->load;
   points->need_update=1;
 }
 
@@ -118,6 +151,84 @@ void Points_Draw(Points* points)
 }
 
 void Points_Remove();
+
+// ---------------------------   Spline Render -------------------------------
+
+Spline Spline_Build(Point control_points[3], float spline_color[4])
+{
+  Spline spline={};
+
+  memcpy(spline.control_points,pts,3*7*sizeof(float));  
+
+  spline.spline=Points_Build(1000,1000);
+  Points_Add(&spline.spline,control_points[0]);
+  Points_Add(&spline.spline,control_points[1]);
+  Points_Add(&spline.spline,control_points[2]);
+
+  spline.accuracy=1000;
+  spline.size=10;
+  
+  spline.color[0]=spline_color[0];
+  spline.color[1]=spline_color[1]; 
+  spline.color[2]=spline_color[2];
+  spline.color[3]=spline_color[3];
+
+
+  return spline;
+}
+
+void Spline_Update(Spline* spline)
+{
+  
+ float buffer[spline->accuracy*2+2];
+ 
+ GLuint tex_buffer;
+ glGenTextures(1, &tex_buffer);
+ glActiveTexture(GL_TEXTURE0);
+ glBindTexture(GL_TEXTURE_1D, tex_buffer);
+ glTexImage1D(GL_TEXTURE_1D, 0, GL_RGBA32F, spline->accuracy , 0 , GL_RGBA, GL_FLOAT,NULL);
+ glBindImageTexture(1,tex_buffer,0,GL_FALSE,0,GL_READ_WRITE,GL_RGBA32F);
+ 
+ float p1[2]={spline->control_points[0][0],spline->control_points[0][1]};
+ float p2[2]={spline->control_points[1][0],spline->control_points[1][1]};
+ float p3[2]={spline->control_points[2][0],spline->control_points[2][1]};
+
+ glUseProgram(bernstein_shader); 
+
+ glUniform2fv(bernstein_locs[0],1,p1);
+ glUniform2fv(bernstein_locs[1],1,p2);
+ glUniform2fv(bernstein_locs[2],1,p3);
+ 
+ glUseProgram(bernstein_shader); 
+ glDispatchCompute(512,1,1); 
+ 
+ glMemoryBarrier(GL_ALL_BARRIER_BITS);
+
+ glGetTexImage(GL_TEXTURE_1D,
+               0,
+               GL_RGBA,
+               GL_FLOAT,
+               buffer);
+ 
+  
+ for(uint64_t i=0;i<spline->accuracy;i++)
+ {
+   printf(" %f %f \n ", buffer[i*2],buffer[i*2+1]);
+   Point pt={ buffer[i*2],buffer[i*2+1],
+              spline->color[0],spline->color[1],
+              spline->color[2],spline->color[3],
+	      spline->size};
+     
+   Points_Add(&(spline->spline),pt);
+ }
+ 
+}
+  
+void Spline_Draw(Spline *spline)
+{
+
+  Points_Draw(&(spline->spline));
+}
 
 // ------------------------------   Utils ------------------------------------
 

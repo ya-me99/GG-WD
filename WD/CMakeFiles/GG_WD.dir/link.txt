@@ -1,0 +1,1 @@
+/usr/bin/cc -g CMakeFiles/GG_WD.dir/main.c.o CMakeFiles/GG_WD.dir/render.c.o CMakeFiles/GG_WD.dir/window.c.o CMakeFiles/GG_WD.dir/shader.c.o -o GG_WD  -L/usr/lib/x86_64-linux-gnu  -lSDL2 -ldl -lm -lepoxy 

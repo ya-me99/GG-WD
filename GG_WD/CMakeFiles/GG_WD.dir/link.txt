@@ -1,1 +1,0 @@
-/usr/bin/cc -g CMakeFiles/GG_WD.dir/main.c.o CMakeFiles/GG_WD.dir/render.c.o CMakeFiles/GG_WD.dir/window.c.o CMakeFiles/GG_WD.dir/gl.c.o CMakeFiles/GG_WD.dir/shader.c.o -o GG_WD  -Wl,-rpath,/usr/local/lib /usr/local/lib/libSDL2main.a /usr/local/lib/libSDL2-2.0.so.0.18.3 -ldl -lm 

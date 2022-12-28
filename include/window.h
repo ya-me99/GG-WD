@@ -4,7 +4,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
-#include "glad/gl.h"
+#include <epoxy/gl.h>
+#include <epoxy/glx.h>
 #include "render.h"
 #include <cglm/cglm.h>
 #include "da_type.h"
@@ -13,7 +14,6 @@ typedef enum
 {
  WINDOW_EVENTS,
 }WindowState;
-
 
 typedef struct
 {

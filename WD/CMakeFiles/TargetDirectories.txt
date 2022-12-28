@@ -1,0 +1,3 @@
+/home/yame/Schreibtisch/GG-WD/WD/CMakeFiles/GG_WD.dir
+/home/yame/Schreibtisch/GG-WD/WD/CMakeFiles/edit_cache.dir
+/home/yame/Schreibtisch/GG-WD/WD/CMakeFiles/rebuild_cache.dir

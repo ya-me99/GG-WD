@@ -1,11 +1,10 @@
 #version 430
 
 layout(local_size_x = 1 ) in;
-layout(rgba32f, binding = 0) uniform image1D img_output;
-
+layout(rgba32f, binding = 1) uniform image1D img_output;
 
 uniform vec2 control_points_x; //=vec2(0,0);
-uniform vec2 control_points_y; // =vec2(0.5,0.5);
+uniform vec2 control_points_y; //=vec2(0.5,0.5);
 uniform vec2 control_points_z; //=vec2(1,0);
 
 void main()

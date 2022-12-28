@@ -19,16 +19,18 @@ void Init_Window()
  
  int8_t err=SDL_GL_LoadLibrary(NULL);
 
- SDL_GL_SetAttribute(SDL_GL_ACCELERATED_VISUAL, 1);
- SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 4);
- SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 6);
- SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
- SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
+  SDL_GL_SetAttribute(SDL_GL_ACCELERATED_VISUAL, 1);
+  SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 4);
+  SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 6);
+  SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
+  SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
  
  GlobalWindow=SDL_CreateWindow(" Test ",0,0,1024,1024,SDL_WINDOW_OPENGL|
                                                       SDL_WINDOW_RESIZABLE);
 
  GlobalContext=SDL_GL_CreateContext(GlobalWindow);
+
+ printf(" %s \n ", SDL_GetError());
  
  GlobalWindowState.win_size[0]=(float)1024;
  GlobalWindowState.win_size[1]=(float)1024;

@@ -1,3 +1,0 @@
-/home/yame/Desktop/GG_WD/GG_WD/CMakeFiles/rebuild_cache.dir
-/home/yame/Desktop/GG_WD/GG_WD/CMakeFiles/edit_cache.dir
-/home/yame/Desktop/GG_WD/GG_WD/CMakeFiles/GG_WD.dir
