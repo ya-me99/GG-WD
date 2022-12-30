@@ -11,6 +11,36 @@
 #include <epoxy/gl.h>
 #include <epoxy/glx.h>
 
+
+// ------------------------------------- Rect_Batch-----------------------------
+
+typedef struct
+{
+ ArrayF32 data;
+ uint32_t ssbo_entries;
+ uint32_t ssbo_storage;
+ uint16_t ssbo_load;
+ uint8_t ssbo_update;
+ float batch_color[4];
+ GLuint ssbo;
+}RectBatch;
+
+
+
+RectBatch RectBatch_Build(uint32_t ssbo_storage, uint16_t ssbo_load , float batch_color[4]);
+
+void RectBatch_Add(RectBatch* batch, float data[12]);
+
+void RectBatch_Draw(RectBatch* batch);
+
+void RectBatch_ResizeSSBO(RectBatch* batch, uint64_t extra);
+
+void RectBatch_PrintSSBO(RectBatch batch);
+
+void RectBatch_PrintData(RectBatch batch);
+
+void RectBatch_PrintInfo(RectBatch batch);
+
 // ------------------------------------- Points --------------------------------
 
 typedef float Point[7];

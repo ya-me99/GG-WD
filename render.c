@@ -5,6 +5,25 @@ GLuint dummy_vao;
 GLuint point_shader;
 GLuint bernstein_shader;
 GLuint bernstein_locs[3];
+GLuint rect_batch_shader;
+GLuint rect_batch_vbo;
+GLuint rect_batch_ebo;
+GLuint rect_batch_vao;
+
+float global_rect[8]=
+{
+ 0,0,      // top_left
+ 0,0,      // bot_right
+ 0,0,      // top_right
+ 0,0,      // bot_left
+};
+ 
+uint8_t global_rect_index[6]=
+{
+ 0,1,2,
+ 0,1,3,
+};
+
 
 GENERIC_ARRAY_DEF(ArrayU8,uint8_t);
 GENERIC_ARRAY_DEF(ArrayU16,uint16_t);
@@ -16,6 +35,8 @@ GENERIC_ARRAY_DEF(ArrayS32,int32_t);
 GENERIC_ARRAY_DEF(ArrayS64,int64_t);
 GENERIC_ARRAY_DEF(ArrayF32,float);
 GENERIC_ARRAY_DEF(ArrayF64,double);
+
+
 
 void Init_Render()
 {
@@ -30,14 +51,132 @@ void Init_Render()
  
  bernstein_shader=Shader_BuildProg("shaders/spline_compute.glsl"); 
  glUseProgram(bernstein_shader);
- bernstein_locs[0]==glGetUniformLocation(bernstein_shader,"control_points_x");
- bernstein_locs[1]==glGetUniformLocation(bernstein_shader,"control_points_y");
- bernstein_locs[2]==glGetUniformLocation(bernstein_shader,"control_points_z");
+ bernstein_locs[0]=glGetUniformLocation(bernstein_shader,"control_points_x");
+ bernstein_locs[1]=glGetUniformLocation(bernstein_shader,"control_points_y");
+ bernstein_locs[2]=glGetUniformLocation(bernstein_shader,"control_points_z");
 
+ // -------------------   Rect Batch Init
+
+ rect_batch_shader=Shader_BuildProg("shaders/rect_batch.glsl");
+ glGenBuffers(1,&rect_batch_vbo);
+ glGenBuffers(1,&rect_batch_ebo);
+ glGenVertexArrays(1,&rect_batch_vao);
+ 
+ glBindVertexArray(rect_batch_vao);
+
+ glBindBuffer(GL_ARRAY_BUFFER,rect_batch_vbo);
+ glBufferData(GL_ARRAY_BUFFER,8*sizeof(float),global_rect,GL_STATIC_DRAW);
+ glBufferData(GL_ELEMENT_ARRAY_BUFFER,6,global_rect_index,GL_STATIC_DRAW);
 }
 
 
+// ------------------------------------- Rect_Batch-----------------------------
 
+
+RectBatch RectBatch_Build(uint32_t ssbo_storage, uint16_t ssbo_load ,float batch_color[4])
+{
+ RectBatch batch={};
+
+ batch.data=ArrayF32_Build(ssbo_storage*12,ssbo_load*12);
+
+ glGenBuffers(1,&batch.ssbo);
+   
+ glBindBuffer(GL_SHADER_STORAGE_BUFFER,batch.ssbo);
+ glBufferData(GL_SHADER_STORAGE_BUFFER,ssbo_storage*sizeof(float)*12,NULL,
+              GL_DYNAMIC_DRAW);
+
+ glBindBufferBase(GL_SHADER_STORAGE_BUFFER,0,batch.ssbo);
+ 
+ batch.ssbo_storage=ssbo_storage;
+ batch.ssbo_load=ssbo_load;
+ 
+ batch.batch_color[0]=batch_color[0];
+ batch.batch_color[1]=batch_color[1];
+ batch.batch_color[2]=batch_color[2];
+ batch.batch_color[3]=batch_color[3];
+
+ return batch;
+}
+
+void RectBatch_ResizeSSBO(RectBatch* batch, uint64_t extra)
+{
+ batch->ssbo_storage+=batch->ssbo_load+extra;
+ 
+ glBindBuffer(GL_SHADER_STORAGE_BUFFER,batch->ssbo);
+ glBufferData(GL_SHADER_STORAGE_BUFFER,
+              batch->ssbo_storage*sizeof(float)*12,
+              batch->data.array,GL_DYNAMIC_DRAW);
+ 
+ batch->ssbo_update=0;
+}
+
+void RectBatch_Add(RectBatch* batch, float data[12])
+{
+ ArrayF32_AddArray(data,&(batch->data),12);
+
+ batch->ssbo_entries++;
+ batch->ssbo_update=1;
+}
+
+void RectBatch_Draw(RectBatch* batch)
+{
+ glUseProgram(rect_batch_shader);
+ glBindVertexArray(rect_batch_vao); 
+ glBindBuffer(GL_SHADER_STORAGE_BUFFER,batch->ssbo);
+ 
+ if(batch->ssbo_entries>batch->ssbo_storage) { RectBatch_ResizeSSBO(batch,0); }
+
+ if(batch->ssbo_update){ 
+
+  glBufferSubData(GL_SHADER_STORAGE_BUFFER,0,
+                  batch->ssbo_entries*sizeof(float)*12,
+                  batch->data.array);
+ 
+  batch->ssbo_update=0;
+ }
+
+ glBindBufferBase(GL_SHADER_STORAGE_BUFFER,0,batch->ssbo);
+ 
+ glDrawElementsInstanced(GL_TRIANGLES,6,GL_UNSIGNED_BYTE,&global_rect_index,batch->ssbo_entries);
+ 
+}
+
+void RectBatch_PrintSSBO(RectBatch batch)
+{
+
+ glBindBuffer(GL_SHADER_STORAGE_BUFFER,batch.ssbo);
+ 
+ float buffer[batch.ssbo_storage*12];
+
+ glGetBufferSubData(GL_SHADER_STORAGE_BUFFER,0,batch.ssbo_entries*12*sizeof(float),buffer);
+
+ for(uint64_t i=0;i<batch.ssbo_entries*12;i++)
+ {
+  printf(" SSBO %d  = % f \n ",i,buffer[i]);
+ }
+
+}
+
+void RectBatch_PrintData(RectBatch batch)
+{
+ for(uint64_t i=0;i<batch.data.used;i++)
+ {
+  printf(" Value At %d = %f ------------- \n" , batch.data.array[i]);
+ }
+}
+
+void RectBatch_PrintInfo(RectBatch batch)
+{
+ printf(" entries = %d ------------- \n" , batch.ssbo_entries);
+ printf(" storage = %d ------------- \n" , batch.ssbo_storage);
+ printf(" load    = %d ------------- \n" , batch.ssbo_load);
+ printf(" update  = %d ------------- \n" , batch.ssbo_update);
+ printf(" ssbo    = %d ------------- \n" , batch.ssbo); 
+ printf(" color   = %f %f %f %f----- \n" , batch.batch_color[0],
+                                           batch.batch_color[1],
+                                           batch.batch_color[2],
+                                           batch.batch_color[3]); 
+}
 
 // -------------------   Points Render -----------------------------
 
@@ -72,55 +211,53 @@ Points Points_Build(uint32_t space,uint32_t load)
 void Points_Add(Points* points,Point point)
 {
   
- if(points->count==points->space){
-  Points_ResizeBuffer(points); 
- }
+  if(points->count==points->space){
+    Points_ResizeBuffer(points); 
+  }
 
- ArrayF32_AddArray(point,&(points->data),7); 
+  ArrayF32_AddArray(point,&(points->data),7); 
 
- points->count++;
- points->need_update=1;
+  points->count++;
+  points->need_update=1;
   
 }
 
 void Points_AddArray(Points *points,Point *point,uint64_t count)
 {
- if(points->count+count==points->space){
-  points->load+=count;
-  Points_ResizeBuffer(points);
-  points->load-=count;
- }
+  if(points->count+count==points->space){
+    points->load+=count;
+    Points_ResizeBuffer(points);
+    points->load-=count;
+  }
 
- ArrayF32_AddArray(point,&(points->data),count*7);
+  ArrayF32_AddArray(point,&(points->data),count*7);
 
- points->count+=count;
- points->need_update=1;
+  points->count+=count;
+  points->need_update=1;
 }
 
 void Points_PointUpdate(Points* points,Point point,uint32_t unit)
 {
 
- if(points->space<unit){ return ; }
+  if(points->space<unit){ return ; }
  
- uint32_t index=unit*7;
+  uint32_t index=unit*7;
 
- points->data.array[index]=point[0];
- points->data.array[index+1]=point[1];
- points->data.array[index+2]=point[2];
- points->data.array[index+3]=point[3];
- points->data.array[index+4]=point[4];
- points->data.array[index+5]=point[5];
- points->data.array[index+6]=point[6];
-
- //memcpy(&(),point,7*sizeof(float));
+  points->data.array[index]=point[0];
+  points->data.array[index+1]=point[1];
+  points->data.array[index+2]=point[2];
+  points->data.array[index+3]=point[3];
+  points->data.array[index+4]=point[4];
+  points->data.array[index+5]=point[5];
+  points->data.array[index+6]=point[6];
  
- points->need_update=1;
+  points->need_update=1;
 }
 
 void Points_ResizeBuffer(Points* points)
 {
   uint64_t size=7*sizeof(float)*points->load +
-                7*sizeof(float)*points->count;
+    7*sizeof(float)*points->count;
 
   glBindBuffer(GL_ARRAY_BUFFER,points->vbo);
   glBufferData(GL_ARRAY_BUFFER,size,NULL,GL_DYNAMIC_DRAW);
@@ -132,21 +269,21 @@ void Points_ResizeBuffer(Points* points)
 void Points_Draw(Points* points)
 {
 
- if(points->need_update)
- { 
-  glBindBuffer(GL_ARRAY_BUFFER,points->vbo);
+  if(points->need_update)
+    { 
+      glBindBuffer(GL_ARRAY_BUFFER,points->vbo);
  
-  glBufferSubData( GL_ARRAY_BUFFER,
-                   0,
-                   sizeof(float)*points->data.used,
-                   points->data.array);
+      glBufferSubData( GL_ARRAY_BUFFER,
+		       0,
+		       sizeof(float)*points->data.used,
+		       points->data.array);
 
-  points->need_update=0;
- }
+      points->need_update=0;
+    }
 
- glUseProgram(point_shader);
- glBindVertexArray(points->vao);  
- glDrawArrays(GL_POINTS,0,points->count);
+  glUseProgram(point_shader);
+  glBindVertexArray(points->vao);  
+  glDrawArrays(GL_POINTS,0,points->count);
 
 }
 
@@ -154,12 +291,18 @@ void Points_Remove();
 
 // ---------------------------   Spline Render -------------------------------
 
-Spline Spline_Build(Point control_points[3], float spline_color[4])
+Spline Spline_Build(Point control_points[3],float spline_color[4])
 {
   Spline spline={};
 
-  memcpy(spline.control_points,pts,3*7*sizeof(float));  
-
+  memcpy(spline.control_points,control_points,3*7*sizeof(float));  
+  printf(" %f -- %f  %f -- %f  %f -- %f  \n ", spline.control_points[0][0],
+	 spline.control_points[0][1],
+	 spline.control_points[1][0],
+	 spline.control_points[1][1],
+	 spline.control_points[2][0],
+	 spline.control_points[2][1]);
+	                         
   spline.spline=Points_Build(1000,1000);
   Points_Add(&spline.spline,control_points[0]);
   Points_Add(&spline.spline,control_points[1]);
@@ -180,45 +323,44 @@ Spline Spline_Build(Point control_points[3], float spline_color[4])
 void Spline_Update(Spline* spline)
 {
   
- float buffer[spline->accuracy*2+2];
+  float buffer[spline->accuracy*2];
  
- GLuint tex_buffer;
- glGenTextures(1, &tex_buffer);
- glActiveTexture(GL_TEXTURE0);
- glBindTexture(GL_TEXTURE_1D, tex_buffer);
- glTexImage1D(GL_TEXTURE_1D, 0, GL_RGBA32F, spline->accuracy , 0 , GL_RGBA, GL_FLOAT,NULL);
- glBindImageTexture(1,tex_buffer,0,GL_FALSE,0,GL_READ_WRITE,GL_RGBA32F);
+  GLuint tex_buffer;
+  glGenTextures(1, &tex_buffer);
+  glActiveTexture(GL_TEXTURE0);
+  glBindTexture(GL_TEXTURE_1D, tex_buffer);
+  glTexImage1D(GL_TEXTURE_1D, 0, GL_RGBA32F, spline->accuracy/2 , 0 , GL_RGBA, GL_FLOAT,NULL);
+  glBindImageTexture(1,tex_buffer,0,GL_FALSE,0,GL_READ_WRITE,GL_RGBA32F);
  
- float p1[2]={spline->control_points[0][0],spline->control_points[0][1]};
- float p2[2]={spline->control_points[1][0],spline->control_points[1][1]};
- float p3[2]={spline->control_points[2][0],spline->control_points[2][1]};
+  float p1[2]={spline->control_points[0][0],spline->control_points[0][1]};
+  float p2[2]={spline->control_points[1][0],spline->control_points[1][1]};
+  float p3[2]={spline->control_points[2][0],spline->control_points[2][1]};
 
- glUseProgram(bernstein_shader); 
+  glUseProgram(bernstein_shader);
 
- glUniform2fv(bernstein_locs[0],1,p1);
- glUniform2fv(bernstein_locs[1],1,p2);
- glUniform2fv(bernstein_locs[2],1,p3);
+  glUniform2fv(bernstein_locs[0],1,p1);
+  glUniform2fv(bernstein_locs[1],1,p2);
+  glUniform2fv(bernstein_locs[2],1,p3);
  
- glUseProgram(bernstein_shader); 
- glDispatchCompute(512,1,1); 
+  glUseProgram(bernstein_shader); 
+  glDispatchCompute(500,1,1); 
  
- glMemoryBarrier(GL_ALL_BARRIER_BITS);
+  glMemoryBarrier(GL_ALL_BARRIER_BITS);
 
- glGetTexImage(GL_TEXTURE_1D,
-               0,
-               GL_RGBA,
-               GL_FLOAT,
-               buffer);
+  glGetTexImage(GL_TEXTURE_1D,
+		0,
+		GL_RGBA,
+		GL_FLOAT,
+		buffer);
  
   
- for(uint64_t i=0;i<spline->accuracy;i++)
- {
-   printf(" %f %f \n ", buffer[i*2],buffer[i*2+1]);
-   Point pt={ buffer[i*2],buffer[i*2+1],
-              spline->color[0],spline->color[1],
-              spline->color[2],spline->color[3],
-	      spline->size};
-     
+  for(uint64_t i=0;i<spline->accuracy;i++)
+    {
+      Point pt={ buffer[i*2],buffer[i*2+1],
+	spline->color[0],spline->color[1],
+	spline->color[2],spline->color[3],
+	spline->size};
+    
    Points_Add(&(spline->spline),pt);
  }
  

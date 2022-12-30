@@ -14,19 +14,21 @@ int main()
  
  uint64_t t;
  uint64_t dt;
-
- Points test=Points_Build(1000,100);
- Points_Add(&test,(Point){0,0,1,0,0,1,15});
-
-
- Point pts[3]={0.0,0.0,1,0,0,1,4,
-               0.5,0.5,1,0,0,1,4,
-               1.0,0.0,1,0,0,1,4};
-  
- Spline spline=Spline_Build(pts,(float[4]){0,0,0,1});
  
- Spline_Update(&spline);
- 
+ vec4 color={1,1,1,1};
+
+ RectBatch batch=RectBatch_Build(1000000,1000,color);
+
+ uint64_t stress=1000000;
+
+ for(uint64_t i=0;i<stress;i++)
+ {
+  float t= (float)i/(float)stress;
+  float val=1-t;
+  float rect[12]={-val,val,val,-val,val,val,-val,-val,val,val,val,1};
+  RectBatch_Add(&batch,rect);
+ }
+
  while(1)
  {   
   t=SDL_GetTicks();
@@ -36,15 +38,14 @@ int main()
   Window_Update();
    
   glClear(GL_COLOR_BUFFER_BIT);   
- 
-  //Points_Draw(&test);
-   Spline_Draw(&spline);
+
+  RectBatch_Draw(&batch);
   SDL_GL_SwapWindow(GlobalWindow);
 
   // WindowTool_Update();
  
   dt=SDL_GetTicks64()-t;
-  //printf(" points drawn  %d  ---%d frames  \n " ,test.count , dt); 
+  printf(" rects  drawn  %d  ---  %d millis  \n " ,batch.ssbo_entries,dt); 
  }
  
  SDL_DestroyWindow(GlobalWindow);

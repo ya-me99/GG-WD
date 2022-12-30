@@ -1,0 +1,39 @@
+#version 460 core
+
+
+layout(std430, binding=0) buffer name
+{
+ float data[];
+};
+
+void main()
+{
+ 
+ int index;
+  
+ switch(glVertex_ID)
+ {
+  case 0:index=gl_InstanceID*12;break;
+  case 1:index=gl_InstanceID*12+2;break;
+  case 2:index=gl_InstanceID*12+4;break;
+  case 3:index=gl_InstanceID*12+6;break;
+ }
+ 
+ vec2 pos={data[index],data[index+1]};
+ gl_Position=vec4(pos,0.0,1.0);
+ 
+}
+
+@1 BatchShader Vertex @
+
+#version 460 core
+
+out vec4 Color;
+
+void main()
+{
+ Color=vec4(1,1,1,1);
+}
+
+@5 BatchShader Frag @
+$
