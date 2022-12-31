@@ -6,23 +6,6 @@ GLuint point_shader;
 GLuint bernstein_shader;
 GLuint bernstein_locs[3];
 GLuint rect_batch_shader;
-GLuint rect_batch_vbo;
-GLuint rect_batch_ebo;
-GLuint rect_batch_vao;
-
-float global_rect[8]=
-{
- 0,0,      // top_left
- 0,0,      // bot_right
- 0,0,      // top_right
- 0,0,      // bot_left
-};
- 
-uint8_t global_rect_index[6]=
-{
- 0,1,2,
- 0,1,3,
-};
 
 
 GENERIC_ARRAY_DEF(ArrayU8,uint8_t);
@@ -58,37 +41,33 @@ void Init_Render()
  // -------------------   Rect Batch Init
 
  rect_batch_shader=Shader_BuildProg("shaders/rect_batch.glsl");
- glGenBuffers(1,&rect_batch_vbo);
- glGenBuffers(1,&rect_batch_ebo);
- glGenVertexArrays(1,&rect_batch_vao);
  
- glBindVertexArray(rect_batch_vao);
-
- glBindBuffer(GL_ARRAY_BUFFER,rect_batch_vbo);
- glBufferData(GL_ARRAY_BUFFER,8*sizeof(float),global_rect,GL_STATIC_DRAW);
- glBufferData(GL_ELEMENT_ARRAY_BUFFER,6,global_rect_index,GL_STATIC_DRAW);
 }
 
 
 // ------------------------------------- Rect_Batch-----------------------------
 
 
-RectBatch RectBatch_Build(uint32_t ssbo_storage, uint16_t ssbo_load ,float batch_color[4])
+RectBatch RectBatch_Build(uint32_t storage, uint16_t load ,float batch_color[4])
 {
  RectBatch batch={};
 
- batch.data=ArrayF32_Build(ssbo_storage*12,ssbo_load*12);
-
- glGenBuffers(1,&batch.ssbo);
-   
- glBindBuffer(GL_SHADER_STORAGE_BUFFER,batch.ssbo);
- glBufferData(GL_SHADER_STORAGE_BUFFER,ssbo_storage*sizeof(float)*12,NULL,
-              GL_DYNAMIC_DRAW);
-
- glBindBufferBase(GL_SHADER_STORAGE_BUFFER,0,batch.ssbo);
+ glGenBuffers(1,&batch.vbo);
+ glGenBuffers(1,&batch.ebo);
+ glGenVertexArrays(1,&batch.vao);
  
- batch.ssbo_storage=ssbo_storage;
- batch.ssbo_load=ssbo_load;
+ glBindVertexArray(batch.vao);
+ 
+ glBindBuffer(GL_ARRAY_BUFFER,batch.vbo);
+ glBufferData(GL_ARRAY_BUFFER,storage*sizeof(float)*12,NULL,GL_DYNAMIC_DRAW);
+
+ glVertexAttribPointer(0,2,GL_FLOAT,NULL,0,(void*)0);
+ glEnableVertexAttribArray(0);
+ //glVertexAttribDivisor(0,0);
+ 
+ batch.data=ArrayF32_Build(storage*12,load*12);
+ batch.storage=storage;
+ batch.load=load;
  
  batch.batch_color[0]=batch_color[0];
  batch.batch_color[1]=batch_color[1];
@@ -100,57 +79,56 @@ RectBatch RectBatch_Build(uint32_t ssbo_storage, uint16_t ssbo_load ,float batch
 
 void RectBatch_ResizeSSBO(RectBatch* batch, uint64_t extra)
 {
- batch->ssbo_storage+=batch->ssbo_load+extra;
+ batch->storage+=batch->load+extra;
  
- glBindBuffer(GL_SHADER_STORAGE_BUFFER,batch->ssbo);
- glBufferData(GL_SHADER_STORAGE_BUFFER,
-              batch->ssbo_storage*sizeof(float)*12,
+ glBindBuffer(GL_ARRAY_BUFFER,batch->ssbo);
+ 
+ glBufferData(GL_ARRAY_BUFFER,
+              batch->storage*sizeof(float)*12,
               batch->data.array,GL_DYNAMIC_DRAW);
  
- batch->ssbo_update=0;
+ batch->update=0;
 }
 
 void RectBatch_Add(RectBatch* batch, float data[12])
 {
  ArrayF32_AddArray(data,&(batch->data),12);
 
- batch->ssbo_entries++;
- batch->ssbo_update=1;
+ batch->entries++;
+ batch->update=1;
 }
 
 void RectBatch_Draw(RectBatch* batch)
 {
  glUseProgram(rect_batch_shader);
- glBindVertexArray(rect_batch_vao); 
- glBindBuffer(GL_SHADER_STORAGE_BUFFER,batch->ssbo);
+ glBindVertexArray(batch->vao); 
  
- if(batch->ssbo_entries>batch->ssbo_storage) { RectBatch_ResizeSSBO(batch,0); }
+ if(batch->entries>batch->storage) { RectBatch_ResizeSSBO(batch,0); }
 
- if(batch->ssbo_update){ 
+ if(batch->update){ 
 
-  glBufferSubData(GL_SHADER_STORAGE_BUFFER,0,
-                  batch->ssbo_entries*sizeof(float)*12,
+  glBufferSubData(GL_ARRAY_BUFFER,0,
+                  batch->entries*sizeof(float)*12,
                   batch->data.array);
  
-  batch->ssbo_update=0;
+  batch->update=0;
  }
 
- glBindBufferBase(GL_SHADER_STORAGE_BUFFER,0,batch->ssbo);
- 
- glDrawElementsInstanced(GL_TRIANGLES,6,GL_UNSIGNED_BYTE,&global_rect_index,batch->ssbo_entries);
+   glDrawArrays(GL_TRIANGLES,0,batch->entries*2);
+ //glDrawArraysInstanced(GL_TRIANGLES,0,6,batch->entries);
  
 }
 
-void RectBatch_PrintSSBO(RectBatch batch)
+void RectBatch_PrintVBO(RectBatch batch)
 {
 
- glBindBuffer(GL_SHADER_STORAGE_BUFFER,batch.ssbo);
+ glBindBuffer(GL_ARRAY_BUFFER,batch.vbo);
  
- float buffer[batch.ssbo_storage*12];
+ float buffer[batch.storage*12];
 
- glGetBufferSubData(GL_SHADER_STORAGE_BUFFER,0,batch.ssbo_entries*12*sizeof(float),buffer);
+ glGetBufferSubData(GL_ARRAY_BUFFER,0,batch.entries*12*sizeof(float),buffer);
 
- for(uint64_t i=0;i<batch.ssbo_entries*12;i++)
+ for(uint64_t i=0;i<batch.entries*12;i++)
  {
   printf(" SSBO %d  = % f \n ",i,buffer[i]);
  }
@@ -167,10 +145,10 @@ void RectBatch_PrintData(RectBatch batch)
 
 void RectBatch_PrintInfo(RectBatch batch)
 {
- printf(" entries = %d ------------- \n" , batch.ssbo_entries);
- printf(" storage = %d ------------- \n" , batch.ssbo_storage);
- printf(" load    = %d ------------- \n" , batch.ssbo_load);
- printf(" update  = %d ------------- \n" , batch.ssbo_update);
+ printf(" entries = %d ------------- \n" , batch.entries);
+ printf(" storage = %d ------------- \n" , batch.storage);
+ printf(" load    = %d ------------- \n" , batch.load);
+ printf(" update  = %d ------------- \n" , batch.update);
  printf(" ssbo    = %d ------------- \n" , batch.ssbo); 
  printf(" color   = %f %f %f %f----- \n" , batch.batch_color[0],
                                            batch.batch_color[1],

@@ -16,19 +16,22 @@ int main()
  uint64_t dt;
  
  vec4 color={1,1,1,1};
+ 
+ RectBatch batch=RectBatch_Build(100000,1000,color);
 
- RectBatch batch=RectBatch_Build(1000000,1000,color);
-
- uint64_t stress=1000000;
+ uint64_t stress=100000;
 
  for(uint64_t i=0;i<stress;i++)
  {
   float t= (float)i/(float)stress;
-  float val=1-t;
-  float rect[12]={-val,val,val,-val,val,val,-val,-val,val,val,val,1};
+  float val=0.2;
+  float rect[12]={-val,-val,-val,val,val,-val,
+                  val,-val,-val,val,val,val,};
   RectBatch_Add(&batch,rect);
  }
+ 
 
+ 
  while(1)
  {   
   t=SDL_GetTicks();
@@ -39,13 +42,14 @@ int main()
    
   glClear(GL_COLOR_BUFFER_BIT);   
 
+ 
   RectBatch_Draw(&batch);
   SDL_GL_SwapWindow(GlobalWindow);
 
   // WindowTool_Update();
  
   dt=SDL_GetTicks64()-t;
-  printf(" rects  drawn  %d  ---  %d millis  \n " ,batch.ssbo_entries,dt); 
+  printf(" rects  drawn  %d  ---  %d millis  \n " ,batch.entries,dt);
  }
  
  SDL_DestroyWindow(GlobalWindow);

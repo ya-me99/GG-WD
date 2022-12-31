@@ -17,12 +17,12 @@
 typedef struct
 {
  ArrayF32 data;
- uint32_t ssbo_entries;
- uint32_t ssbo_storage;
- uint16_t ssbo_load;
- uint8_t ssbo_update;
+ uint32_t entries;
+ uint32_t storage;
+ uint16_t load;
+ uint8_t update;
  float batch_color[4];
- GLuint ssbo;
+ GLuint ssbo,vao,ebo,vbo;
 }RectBatch;
 
 
