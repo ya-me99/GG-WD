@@ -7,6 +7,9 @@ GLuint bernstein_shader;
 GLuint bernstein_locs[3];
 GLuint rect_batch_shader;
 
+GLuint spline_shape_shader;
+GLint spline_shape_locs[100];
+
 
 GENERIC_ARRAY_DEF(ArrayU8,uint8_t);
 GENERIC_ARRAY_DEF(ArrayU16,uint16_t);
@@ -18,7 +21,6 @@ GENERIC_ARRAY_DEF(ArrayS32,int32_t);
 GENERIC_ARRAY_DEF(ArrayS64,int64_t);
 GENERIC_ARRAY_DEF(ArrayF32,float);
 GENERIC_ARRAY_DEF(ArrayF64,double);
-
 
 
 void Init_Render()
@@ -41,8 +43,100 @@ void Init_Render()
  // -------------------   Rect Batch Init
 
  rect_batch_shader=Shader_BuildProg("shaders/rect_batch.glsl");
+
+
+ // -------------------   Spline Shape Init
  
+ spline_shape_shader=Shader_BuildProg("shaders/spline_shape.glsl"); 
+ glUseProgram(spline_shape_shader);
+ spline_shape_locs[0]=glGetUniformLocation(spline_shape_shader,"u_color");
 }
+
+// ------------------------------------- SplineShape-----------------------------
+
+
+void SplineShape_SetDetail(SplineShape *shape,uint64_t detail)
+{
+ float *arr=malloc(detail*6*sizeof(float));
+
+ for(uint64_t i=0;i<detail;i++)
+ {
+  float t=(float)i/detail;
+  float n=((float)i+1)/detail;
+
+  float x=(1-t)*(1-t)*shape->pts[0]     +
+            2*t*(1-t)*shape->pts[2]  +
+            (t*t)*shape->pts[4];
+
+  float y=(1-t)*(1-t)*shape->pts[1]     +
+            2*t*(1-t)*shape->pts[3]  +
+             (t*t)*shape->pts[5];
+ 
+  float x1=(1-n)*(1-n)*shape->pts[0]    +
+            2*n*(1-n)*shape->pts[2]  +
+            (n*n)*shape->pts[4];
+
+  float y1=(1-n)*(1-n)*shape->pts[1]    +
+            2*n*(1-n)*shape->pts[3]  +
+             (n*n)*shape->pts[5];
+   
+   arr[i*6]=shape->center[0];
+   arr[i*6+1]=shape->center[1];
+   arr[i*6+2]=x;
+   arr[i*6+3]=y;
+   arr[i*6+4]=x1;
+   arr[i*6+5]=y1;
+  }
+ 
+ if(shape->data) { free(shape->data); }
+ shape->data=arr;
+ shape->detail=detail;
+
+
+ glBindBuffer(GL_ARRAY_BUFFER,shape->vbo);
+ glBufferData(GL_ARRAY_BUFFER,detail*sizeof(float)*6,shape->data,GL_STATIC_DRAW);
+}
+
+SplineShape SplineShape_Build(float pts[6],uint64_t detail)
+{
+ SplineShape shape={ };
+
+ shape.pts[0]=pts[0];
+ shape.pts[1]=pts[1];
+ shape.pts[2]=pts[2];
+ shape.pts[3]=pts[3];
+ shape.pts[4]=pts[4];
+ shape.pts[5]=pts[5];
+ 
+ 
+
+ shape.center[0]=pts[0]+(pts[4]-pts[0])/2;
+ shape.center[1]=pts[1]+(pts[5]-pts[1])/2;
+
+
+ glGenBuffers(1,&shape.vbo);
+ glGenBuffers(1,&shape.ebo);
+ glGenVertexArrays(1,&shape.vao);
+ glBindVertexArray(shape.vao); 
+ glBindBuffer(GL_ARRAY_BUFFER,shape.vbo);
+
+ glVertexAttribPointer(0,2,GL_FLOAT,GL_FALSE,0,(void*)0);
+ glEnableVertexAttribArray(0);
+  
+ SplineShape_SetDetail(&shape,detail); 
+
+ return shape;
+}
+
+
+void SplineShape_Draw(SplineShape shape)
+{
+ glUseProgram(spline_shape_shader);
+ glBindVertexArray(shape.vao);
+
+ glDrawArrays(GL_TRIANGLES,0,shape.detail*3);
+}
+
 
 
 // ------------------------------------- Rect_Batch-----------------------------
@@ -57,13 +151,13 @@ RectBatch RectBatch_Build(uint32_t storage, uint16_t load ,float batch_color[4])
  glGenVertexArrays(1,&batch.vao);
  
  glBindVertexArray(batch.vao);
- 
+
+
  glBindBuffer(GL_ARRAY_BUFFER,batch.vbo);
  glBufferData(GL_ARRAY_BUFFER,storage*sizeof(float)*12,NULL,GL_DYNAMIC_DRAW);
 
- glVertexAttribPointer(0,2,GL_FLOAT,NULL,0,(void*)0);
+ glVertexAttribPointer(0,2,GL_FLOAT,GL_FALSE,0,(void*)0);
  glEnableVertexAttribArray(0);
- //glVertexAttribDivisor(0,0);
  
  batch.data=ArrayF32_Build(storage*12,load*12);
  batch.storage=storage;
@@ -114,8 +208,7 @@ void RectBatch_Draw(RectBatch* batch)
   batch->update=0;
  }
 
-   glDrawArrays(GL_TRIANGLES,0,batch->entries*2);
- //glDrawArraysInstanced(GL_TRIANGLES,0,6,batch->entries);
+ glDrawArrays(GL_TRIANGLES,0,batch->entries*6);
  
 }
 
@@ -286,7 +379,7 @@ Spline Spline_Build(Point control_points[3],float spline_color[4])
   Points_Add(&spline.spline,control_points[1]);
   Points_Add(&spline.spline,control_points[2]);
 
-  spline.accuracy=1000;
+  spline.accuracy=3000;
   spline.size=10;
   
   spline.color[0]=spline_color[0];
@@ -302,14 +395,7 @@ void Spline_Update(Spline* spline)
 {
   
   float buffer[spline->accuracy*2];
- 
-  GLuint tex_buffer;
-  glGenTextures(1, &tex_buffer);
-  glActiveTexture(GL_TEXTURE0);
-  glBindTexture(GL_TEXTURE_1D, tex_buffer);
-  glTexImage1D(GL_TEXTURE_1D, 0, GL_RGBA32F, spline->accuracy/2 , 0 , GL_RGBA, GL_FLOAT,NULL);
-  glBindImageTexture(1,tex_buffer,0,GL_FALSE,0,GL_READ_WRITE,GL_RGBA32F);
- 
+  
   float p1[2]={spline->control_points[0][0],spline->control_points[0][1]};
   float p2[2]={spline->control_points[1][0],spline->control_points[1][1]};
   float p3[2]={spline->control_points[2][0],spline->control_points[2][1]};
@@ -321,7 +407,7 @@ void Spline_Update(Spline* spline)
   glUniform2fv(bernstein_locs[2],1,p3);
  
   glUseProgram(bernstein_shader); 
-  glDispatchCompute(500,1,1); 
+  glDispatchCompute(1500,1,1); 
  
   glMemoryBarrier(GL_ALL_BARRIER_BITS);
 

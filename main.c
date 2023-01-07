@@ -1,3 +1,4 @@
+
 #include "include/window.h"
 #include "include/shader.h"
 #include "include/render.h"
@@ -7,52 +8,51 @@ int main()
  Init_Window();
  Init_Render();
 
- //glEnable(GL_BLEND);
- //glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
- 
  glEnable(GL_PROGRAM_POINT_SIZE);
- 
+	  
  uint64_t t;
  uint64_t dt;
- 
- vec4 color={1,1,1,1};
- 
- RectBatch batch=RectBatch_Build(100000,1000,color);
 
- uint64_t stress=100000;
+ float pts[6]={-.5,-.5,
+               0,1,
+               .5,-.5};
 
- for(uint64_t i=0;i<stress;i++)
- {
-  float t= (float)i/(float)stress;
-  float val=0.2;
-  float rect[12]={-val,-val,-val,val,val,-val,
-                  val,-val,-val,val,val,val,};
-  RectBatch_Add(&batch,rect);
- }
- 
+ SplineShape shape=SplineShape_Build(pts,0);
+ printf(" %f %f \n ", shape.center[0],shape.center[1]);
+ uint16_t counter=0;
+ uint16_t lvl=1;
 
- 
  while(1)
  {   
   t=SDL_GetTicks();
 
   if(GlobalWindowState.close) { break; }
-   
-  Window_Update();
-   
-  glClear(GL_COLOR_BUFFER_BIT);   
 
- 
-  RectBatch_Draw(&batch);
+  Window_Update();
+     
+  glClear(GL_COLOR_BUFFER_BIT);
+  
+  SplineShape_Draw(shape);
+  counter++;
+  if(counter==60){ lvl++ ; SplineShape_SetDetail(&shape,lvl); counter=0;
+                   printf(" %d Level ------------------------  \n ",lvl);
+                 }
+  
+
   SDL_GL_SwapWindow(GlobalWindow);
 
+  dt=SDL_GetTicks64()-t;
+ 
   // WindowTool_Update();
  
-  dt=SDL_GetTicks64()-t;
-  printf(" rects  drawn  %d  ---  %d millis  \n " ,batch.entries,dt);
+
+  printf("DT = %d \n ", dt);
+   
  }
  
  SDL_DestroyWindow(GlobalWindow);
  SDL_Quit();
  return 0;
 }
+
+

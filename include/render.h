@@ -12,7 +12,29 @@
 #include <epoxy/glx.h>
 
 
-// ------------------------------------- Rect_Batch-----------------------------
+
+// ------------------------------------- SplineShape-----------------------------
+
+
+typedef struct
+{
+ float* data;
+ float pts[6];
+ float center[2];
+ float color[4];
+ GLuint detail;
+ GLuint vao,vbo,ebo;
+}SplineShape;
+
+
+SplineShape SplineShape_Build(float cnt_pts[6],uint64_t detail);
+
+void SplineShape_Draw(SplineShape shape);
+
+void SplineShape_SetDetail(SplineShape *shape, uint64_t detail);
+
+
+// ------------------------------------- RectBatch-----------------------------
 
 typedef struct
 {
