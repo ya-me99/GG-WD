@@ -1,7 +1,8 @@
-
 #include "include/window.h"
 #include "include/shader.h"
 #include "include/render.h"
+
+
 
 int main()
 {
@@ -9,19 +10,21 @@ int main()
  Init_Render();
 
  glEnable(GL_PROGRAM_POINT_SIZE);
-	  
+ glEnable(GL_LINE_SMOOTH);
+ glEnable(GL_BLEND);
+ glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+ 
  uint64_t t;
  uint64_t dt;
 
- float pts[6]={-.5,-.5,
-               0,1,
-               .5,-.5};
+ float color[4]={1,0,0,1};
 
- SplineShape shape=SplineShape_Build(pts,0);
- printf(" %f %f \n ", shape.center[0],shape.center[1]);
- uint16_t counter=0;
- uint16_t lvl=1;
+ float cnt[6]={-1,0, 0,1, 1,0 };
+ 
+ SplineLoop loop=SplineLoop_Build(color,10);
 
+ SplineLoop_AddSpline(&loop,cnt,30);
+ 
  while(1)
  {   
   t=SDL_GetTicks();
@@ -30,15 +33,10 @@ int main()
 
   Window_Update();
      
-  glClear(GL_COLOR_BUFFER_BIT);
-  
-  SplineShape_Draw(shape);
-  counter++;
-  if(counter==60){ lvl++ ; SplineShape_SetDetail(&shape,lvl); counter=0;
-                   printf(" %d Level ------------------------  \n ",lvl);
-                 }
-  
+  glClear(GL_COLOR_BUFFER_BIT); 
 
+  SplineLoop_Draw(&loop);
+  
   SDL_GL_SwapWindow(GlobalWindow);
 
   dt=SDL_GetTicks64()-t;
@@ -46,7 +44,7 @@ int main()
   // WindowTool_Update();
  
 
-  printf("DT = %d \n ", dt);
+  //   printf("DT = %d \n ", dt);
    
  }
  
@@ -54,5 +52,4 @@ int main()
  SDL_Quit();
  return 0;
 }
-
 

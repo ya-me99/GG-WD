@@ -1,0 +1,32 @@
+#version 460 core
+
+layout (location=0) in vec2 pos;
+
+void main()
+{
+ gl_Position=vec4(pos,0,1);
+}
+
+@1 Circle Vertex Test @
+ 
+#version 460 core
+
+out vec4 color;
+uniform vec2 center;
+uniform float radius;
+
+void main()
+{
+ vec2 norm=(gl_FragCoord.xy)/1024;
+
+ float dist=distance(norm,center);
+ 
+ if(dist>radius){ discard; };
+ 
+ color=vec4(1,1,1,1);
+}
+
+
+
+@5 Cricle Frag @
+$
