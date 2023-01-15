@@ -37,14 +37,220 @@ void Init_Render()
  // -------------------   Spline Loop Init
 
  spline_loop_shader=Shader_BuildProg("shaders/spline_loop.glsl");
- spline_loop_max_detail=40;
+ spline_loop_max_detail=40; // Max Lines/Vertecies
  spline_loop_control_points=3;
- spline_loop_load_units=10;
- spline_loop_load_size=spline_loop_max_detail*spline_loop_load_units;
+ spline_loop_load_units=10; 
+ spline_loop_load_size=(spline_loop_max_detail+1)*spline_loop_load_units; // +1 for last line
  spline_loop_load_bytes=spline_loop_load_size*2*sizeof(float);
 
  spline_loop_locs[0]=glGetUniformLocation( spline_loop_shader,"u_color");
- spline_loop_locs[1]=glGetUniformLocation( spline_loop_shader,"u_size");
+}
+
+// ---------------------------   BrushMap -------------------------------
+
+BrushMap BrushMap_Build()
+{
+ BrushMap map={}; 
+
+ map.brushes=ArrayU16_Build(100,10);
+ map.storage_regions=ArrayU16_Build(100,10);
+
+ glGenTextures(1,&map.map);
+ glBindTexture(GL_TEXTURE_2D, map.map);
+ glTexStorage2D(GL_TEXTURE_2D, 1, GL_RGBA32F, 1024, 1024);
+ glBindTexture(GL_TEXTURE_2D, 0); 
+
+ return map;
+}
+
+uint8_t BrushMap_AddBrush(uint16_t bbox[4], GLuint src_texture , BrushMap *map)
+{
+  
+ int16_t src_width=bbox[2]-bbox[0];
+ int16_t src_height=bbox[3]-bbox[1];
+ int32_t region_found=-1;
+ int16_t region_width;
+ int16_t region_height;
+ int16_t width_diff;
+ int16_t height_diff;
+ 
+ BBoxFit fit;
+
+ for(uint64_t i=0;i<map->storage_regions.used;i+=4)
+ {
+  if(map->storage_regions.array[i]==0){ continue; }
+
+  region_width=map->storage_regions.array[i+2]-
+               map->storage_regions.array[i];
+                    
+
+  region_height=map->storage_regions.array[i+3]-
+                map->storage_regions.array[i+1];
+
+
+  if(width_diff=region_width-src_width>0)
+  {
+    if(height_diff=region_height-src_height>0)
+    {
+     region_found=i;
+     
+     if(width_diff&&height_diff==0) { fit=PERFECT_FIT ; break;}
+     if(height_diff==0) { fit=HEIGHT_FIT ; break; } 
+     if(width_diff==0) { fit=WIDTH_FIT   ; break; }
+     
+     fit=POORLY_FIT;
+     break;
+    }
+  }
+ }
+
+
+ uint16_t dst_x=map->storage_regions.array[region_found];
+ uint16_t dst_y=map->storage_regions.array[region_found+1];
+
+
+ if(fit==POORLY_FIT)
+ {
+  uint16_t sub_regions[8];
+  
+  sub_region[0]=dst_x+src_width;
+  sub_region[1]=dst_y;
+
+  sub_region[2]=map->storage_regions.array[region_found+2];
+  sub_region[3]=map->storage_regions.array[region_found+3];
+
+  sub_region[4]=dst_x;
+  sub_region[5]=dst_y+src_height;
+
+  sub_region[6]=dest_x+src_width;
+  sub_region[7]=map->storage_regions.array[region_found+3];
+
+  ArrayU16_AddArray(sub_regions,&map->storage_regions,8);
+ }
+ else if(fit==HEIGHT_FIT)
+ {
+  uint16_t sub_regions[4];
+  
+  sub_region[0]=dst_x+src_width;
+  sub_region[1]=dst_y;
+
+  sub_region[2]=map->storage_regions.array[region_found+2];
+  sub_region[3]=map->storage_regions.array[region_found+3];
+ 
+  ArrayU16_AddArray(sub_regions,&map->storage_regions,4);
+ }
+ else if(fit==WIDTH_FIT)
+ { 
+  uint16_t sub_regions[4];
+  sub_region[0]=dst_x;
+  sub_region[1]=dst_y+src_height;
+
+  sub_region[2]=dest_x+src_width;
+  sub_region[3]=map->storage_regions.array[region_found+3];
+
+  ArrayU16_AddArray(sub_regions,&map->storage_regions,4);
+ }
+  
+
+ map->storage_regions.array[region_found]=0;
+
+ glCopyImageSubData(src_texture,GL_TEXTURE_2D,
+	            0,
+	            bbox[0],
+                    bbox[1],
+	            0,
+	            map->map,
+	            GL_TEXTURE_2D,
+	            0,
+	            dst_x,
+	            dst_y,
+	            0,
+	            src_width,
+	            src_height,
+ 	            0);
+ 
+}
+
+
+
+// ------------------------------ Brush
+
+Brush Brush_Cricle(uint16_t radius,float border_function, float color[4])
+{ 
+ Brush brush={};
+ 
+ float *data = malloc(sizeof(float)*radius*2*radius*2*4);
+ uint32_t pixels_per_line=radius*2;
+ uint32_t pixels_total=pixel_per_line*pixel_per_line;
+ uint16 pixel_x;
+ uint16 pixel_y;
+ uint16_t center_x=radius;
+ uint16_t center_y=radius;
+ float distance;
+ uint16_t row;
+ float alpha;
+
+ for(uint64_t j=0;j<pixels_per_line;j++)
+ {
+  row++;
+   
+  for(uint64_t i=0;i<pixels_per_line;i++)
+  {
+   pixel_x=i;
+   pixel_y=row;
+    
+   distance=sqrt( (pixel_x-center_x)*(pixel_x-center_x) +
+                  (pixel_y-center_y)*(pixel_y-center_y) );
+
+   alpha=distance*boarder_function;
+
+   data[i*4]=color[0];
+   data[i*4+1]=color[1];
+   data[i*4+2]=color[2];
+   data[i*4+3]=alpha;
+  }
+ }
+
+ glGenTextures(1,&brush.image);
+ glBindTexture(GL_TEXTURE_2D, brush.image);
+ glTexStorage2D(GL_TEXTURE_2D, 1, GL_RGBA32F, radius*2 , radius*2);
+ glTexSubImage2D(GL_TEXTURE_2D​, 0,0​,0​,radius​*2,radius*2,GL_RGBA32F​,GL_FLOAT​, data); 
+ glBindTexture(GL_TEXTURE_2D, 0); 
+
+ image_bbox={0,0,radius*2,radius*2}; 
+
+ brush.image_data=data;
+ 
+ GLuint vao,vbo;
+
+ float bot_xy[2];
+ 
+ ScreenToNdc(2*radius,2*radius,bot_xy);
+ 
+ float vertex_data[24]={
+                        -1, 1, 0, 1,                // Top Left 
+                        -1, bot_xy[1], 0, 0,        // Bot Left 
+                        bot_xy[0],1, 1, 1,          // Top Right 
+                        bot_xy[0],1, 1, 1,          // Top Right 
+                        bot_xy[0],bot_xy[1],1,0,    // Bot Right
+                        -1,  bot_xy[1], 0, 0,       // Bot Left 
+                       };
+
+ glGenBuffers(1,&brush.vbo);
+ glGenVertexArrays(1,&brush.vao);
+
+ glBindVertexArray(brush.vao); 
+ glBindBuffer(GL_ARRAY_BUFFER,brush.vbo);
+ glBufferData(GL_ARRAY_BUFFER,24*sizeof(float),
+              vertex_data,GL_DYNAMIC_DRAW);
+ 
+ glVertexAttribPointer(0,2,GL_FLOAT,GL_FALSE,sizeof(float)*2,0);
+ glVertexAttribPointer(1,2,GL_FLOAT,GL_FALSE,sizeof(float)*2,(void*)8);
+
+ glEnableVertexAttribArray(0);
+ glEnableVertexAttribArray(1);
+
+ return brush;
 }
 
 // ---------------------------   Spline Array -------------------------------
@@ -82,7 +288,7 @@ SplineLoop SplineLoop_Build(float color[4],float size)
  glBufferData(GL_ARRAY_BUFFER,spline_loop_load_bytes,
                               NULL,GL_DYNAMIC_DRAW);
  
- glVertexAttribPointer(0,2,GL_FLOAT,GL_FALSE,sizeof(float)*2,0);
+ glVertexAttribPointer(0,2,GL_FLOAT,GL_FALSE,0,0);
 
  glEnableVertexAttribArray(0);
  
@@ -99,10 +305,9 @@ void SplineLoop_AddSpline(SplineLoop *loop,float control_points[6],uint8_t detai
  ArrayF32_Add(control_points[4],&loop->control_points);
  ArrayF32_Add(control_points[5],&loop->control_points);
 
+ ArrayU8_Add(detail,&loop->detail);
 
-ArrayU8_Add(detail,&loop->detail);
-
- float array[detail*2];
+ float array[(detail+1)*2];
  
  for(uint64_t i=0;i<=detail;i++)
  {
@@ -119,10 +324,9 @@ ArrayU8_Add(detail,&loop->detail);
    array[i*2]=x;
    array[i*2+1]=y;
 
-   printf(" ------ x %f   ------ y %f   \n",x,y);
   } 
  
- ArrayF32_AddArray(array,&loop->lines,detail*2);
+ ArrayF32_AddArray(array,&loop->lines,(detail+1)*2);
  loop->vbo_entries++;
  loop->vbo_update=1;
 }
@@ -166,7 +370,7 @@ void SplineLoop_Draw(SplineLoop *loop)
              loop->color[0],loop->color[1],
              loop->color[2],loop->color[3]);
 
- glDrawArrays(GL_LINE_LOOP,0,loop->lines.used/2);
+ glDrawArrays(GL_LINE_STRIP,0,loop->lines.used/2);
 }
 
 
@@ -256,6 +460,22 @@ void SplineShape_Draw(SplineShape shape)
 
 
 // ------------------------------   Utils ------------------------------------
+
+
+void GetRectDimensions(uint16_t top_x,  uint16_t top_y,
+                       uint16_t bot_x,  uint16_t bot_y,
+                       uint32_t* width, uint32_t* height)
+{
+ *width=bot_x-top_x;
+ *height=bot_y-top_y;
+}
+
+
+void GetVboData(GLuint vbo, uint64_t storage_bytes , float* buffer)
+{
+  glBindBuffer(GL_ARRAY_BUFFER,vbo);
+  glGetBufferSubData(GL_ARRAY_BUFFER,0,storage_bytes,buffer); 
+}
 
 uint8_t Point_Hovered(float size , vec2 pos , vec2 hovered)
 {

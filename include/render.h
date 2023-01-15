@@ -11,6 +11,40 @@
 #include <epoxy/gl.h>
 #include <epoxy/glx.h>
 
+// ---------------------------   BrushMap ---------------------
+
+typedef enum
+{
+ PERFECT_FIT,
+ WIDTH_FIT,
+ HEIGHT_FIT,
+ POORLY_FIT,
+}BBoxFit;
+
+typedef struct
+{
+ ArrayU16 brushes;
+ ArrayU16 storage_regions; 
+ GLuint map;
+}BrushMap;
+
+BrushMap BrushMap_Build();
+
+uint8_t BrushMap_AddBrush();
+
+// ---------------------------   Brush -------------------------------
+
+typedef struct
+{
+ GLuint image;
+ float* image_data;
+ uint16_t image_bbox[4];
+ GLuint vao,vbo;
+}Brush;
+
+Brush Brush_Build();
+
+Brush Brush_Cricle(uint16_t radius,float border_function, float color[4]);
 
 // ------------------------------------- SplineShape-----------------------------
 
@@ -59,6 +93,13 @@ void SplineLoop_Draw(SplineLoop *loop);
 // ------------------------------------- Utils --------------------------------- 
 
 void Init_Render();
+
+void GetVboData(GLuint vbo, uint64_t storage_bytes,float* buffer);
+
+void GetRectDimensions(uint16_t top_x,  uint16_t top_y,
+                       uint16_t bot_x,  uint16_t bot_y,
+                       uint32_t* width, uint32_t* height);
+
 
 uint8_t Point_Hovered(float size , vec2 pos , vec2 hovered);
 

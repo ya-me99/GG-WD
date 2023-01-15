@@ -19,12 +19,12 @@ int main()
 
  float color[4]={1,0,0,1};
 
- float cnt[6]={-1,0, 0,1, 1,0 };
+ float cnt[6]={0,0,0.1,1, 1,0 };
  
  SplineLoop loop=SplineLoop_Build(color,10);
-
- SplineLoop_AddSpline(&loop,cnt,30);
  
+ SplineLoop_AddSpline(&loop,cnt,30);
+
  while(1)
  {   
   t=SDL_GetTicks();
